@@ -2,27 +2,27 @@
 
 --** fips counties can identify unique counties and remove country-wide duplicates
 
-SELECT cbsa,cbsaname
-FROM cbsa
-GROUP BY cbsa,cbsaname
+-- SELECT cbsa,cbsaname
+-- FROM cbsa
+-- GROUP BY cbsa,cbsaname
 
 --** so are there 409 unique cbsa names with a one-to-many relationship to fipscounties?
 
-SELECT * FROM cbsa;
+-- SELECT * FROM cbsa;
 
-SELECT * FROM drug;
+-- SELECT * FROM drug;
 
-SELECT * FROM fips_county;
+-- SELECT * FROM fips_county;
 
-SELECT * FROM overdose_deaths;
+-- SELECT * FROM overdose_deaths;
 
-SELECT * FROM population;
+-- SELECT * FROM population;
 
-SELECT * FROM prescriber;
+-- SELECT * FROM prescriber;
 
-SELECT * FROM prescription;
+-- SELECT * FROM prescription;
 
-SELECT * FROM zip_fips;
+-- SELECT * FROM zip_fips;
 
 
 
@@ -37,7 +37,7 @@ ORDER BY total_claim_count DESC; -- claims: 4538, npi:1912011792
 SELECT nppes_provider_first_name,nppes_provider_last_org_name,specialty_description,total_claim_count
 FROM prescription INNER JOIN prescriber 
 	ON prescriber.npi=prescription.npi
-ORDER BY total_claim_count DESC NULLS LAST
+ORDER BY total_claim_count DESC NULLS LAST;
 
 -- 2. 
 --     a. Which specialty had the most total number of claims (totaled over all drugs)?
@@ -75,25 +75,13 @@ HAVING SUM(total_claim_count) IS NULL; -- yes, 15
 --     d. **Difficult Bonus:** *Do not attempt until you have solved all other problems!* For each specialty, report the percentage of total claims by that specialty which are for opioids. 
 --Which specialties have a high percentage of opioids?
 
-SELECT specialty_description, SUM(total_claim_count)
-FROM prescriber
-	INNER JOIN prescription USING (npi)
-GROUP BY specialty_description;
-
-SELECT SUM(total_claim_count)
-FROM drug
-	INNER JOIN prescription USING(drug_name)
-
-
-SELECT specialty_description, SUM(CASE WHEN opioid_drug_flag = 'Y' THEN total_claim_count ELSE 0)
+SELECT specialty_description, 
+	ROUND(SUM(CASE WHEN opioid_drug_flag = 'Y' THEN total_claim_count ELSE 0 END)/SUM(total_claim_count),2) * 100 AS percent_of_opioid_claims
 FROM prescriber INNER JOIN prescription USING(npi)
 				INNER JOIN drug USING(drug_name)
-
-SELECT specialty_description, SUM(CASE WHEN opioid_drug_flag = 'Y' THEN total_claim_count ELSE 0 END) * 100.0 / SUM(total_claim_count)  > 0.5 AS opioid_percentage
-FROM prescriber JOIN prescription ON prescriber.npi = prescription.npi
-				JOIN drug ON prescription.drug_name = drug.drug_name
 GROUP BY specialty_description
-ORDER BY opioid_percentage DESC;
+ORDER BY percent_of_opioid_claims DESC
+LIMIT 10;
 
 -- 3. 
 --     a. Which drug (generic_name) had the highest total drug cost? --* is this asking for the highest sum of the column total drug cost? or the highest individual prescribed total drug cost?
@@ -163,25 +151,8 @@ GROUP BY cbsaname
 --*ORDER BY ensures sql is pulling more than just the top row
 ORDER BY combined_population DESC; -- Largest is Nashville-Davidson--Murfreesboro--Franklin, TN: 1830410   , smallest is Morristown, TN: 116352
 
---* i think this is showing the min and max population of a given cbsa name. so the min and max for two different instances of Chatt TN-GA. but why are there multiple instances?
-	--* do i somehow need to find the sum of population for these instances and then find the highest one?
-SELECT *
-FROM cbsa
-	INNER JOIN population USING (fipscounty)
-	INNER JOIN fips_county USING (fipscounty)
-	--* seems like a cbsa can span multiple couties
-	
-
---*trying to check my answers with this query
-SELECT cbsaname,population
-FROM cbsa 
-	INNER JOIN population USING (fipscounty)
-	INNER JOIN fips_county USING (fipscounty)
-WHERE state = 'TN'
-GROUP BY cbsaname,population
---* got confused when i had multiple cbsa names with different populations
-
 --     c. What is the largest (in terms of population) county which is not included in a CBSA? Report the county name and population.
+
 --*first, what counties aren't in a CBSA?
 SELECT county,population AS total_county_population
 FROM fips_county 
@@ -192,6 +163,7 @@ WHERE cbsa IS NULL
 GROUP BY county, total_county_population
 ORDER BY total_county_population DESC NULLS LAST
 LIMIT 1; -- Sevier county has a population of 95,523
+
 --*If a region has to be 10k to be considered a cbsa, then why am I getting SEVIER county with a population of 95523? Census Bureau supports the population being around 100,000 in 2025
 
 
@@ -259,14 +231,16 @@ WHERE nppes_provider_city= 'NASHVILLE'
 
 --     b. Next, report the number of claims per drug per prescriber. Be sure to include all combinations, whether or not the prescriber had any claims. You should report the npi, the drug name, and the number of claims (total_claim_count).
 
-SELECT prescriber.npi,drug_name,COUNT(total_claim_count)AS claims_per_drug_per_prescriber
+
+
+SELECT prescriber.npi,drug_name,(total_claim_count)AS claims_per_drug_per_prescriber
 FROM prescriber
 	CROSS JOIN drug
-	LEFT JOIN prescription USING(drug_name)
+	LEFT JOIN prescription USING(drug_name,npi)
 WHERE nppes_provider_city= 'NASHVILLE' 
 	AND specialty_description = 'Pain Management'
 	AND opioid_drug_flag= 'Y'
-GROUP BY prescriber.npi, drug_name
 ORDER BY claims_per_drug_per_prescriber DESC; --* looks like i did it a different way, probably need to check before submitting ASK CHRIS!
-	
+
 --     c. fFinally, if you have not done so already, fill in any missing values for total_claim_count with 0. Hint - Google the COALESCE function.
+
